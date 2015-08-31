@@ -87,10 +87,9 @@ def run(url, root, destination, limit, format, noblock):
     if channel_description:
         output.description(CDATA.format(channel_description))
     else:
-        output.description(u'{} Youtube Channel-as-Podcast'.format(feed['feed']['title']))
+        output.description(u'{} Youtube Channel-as-Podcast. See {}'.format(feed['feed']['title'], channel_page))
 
     output.link(href=urlparse.urljoin(root, 'rss.xml'), rel='self')
-    output.link(href=channel_page, rel='alternate')
 
     ydl_options = {
         'outtmpl': os.path.join(destination, '%(id)s.%(ext)s'),
