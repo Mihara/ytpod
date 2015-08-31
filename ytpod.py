@@ -90,7 +90,7 @@ def run(url, root, destination, limit, format, noblock):
         output.description(u'{} Youtube Channel-as-Podcast'.format(feed['feed']['title']))
 
     output.link(href=urlparse.urljoin(root, 'rss.xml'), rel='self')
-    # TODO: More meta.
+    output.link(href=channel_page, rel='alternate')
 
     ydl_options = {
         'outtmpl': os.path.join(destination, '%(id)s.%(ext)s'),
