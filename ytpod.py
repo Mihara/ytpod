@@ -87,7 +87,7 @@ def run(url, root, destination, limit, format, noblock):
     if channel_description:
         output.description(CDATA.format(channel_description))
     else:
-        output.description(u'{} Youtube-as-Podcast'.format(feed['feed']['title']))
+        output.description(u'{} Youtube Channel-as-Podcast'.format(feed['feed']['title']))
 
     output.link(href=urlparse.urljoin(root, 'rss.xml'), rel='self')
     # TODO: More meta.
