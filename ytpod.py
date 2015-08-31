@@ -16,8 +16,6 @@ import youtube_dl
 from bs4 import BeautifulSoup
 import requests
 
-CDATA = "<![CDATA[{}]]>"
-
 
 def fail(*objs):
     print("ERROR: ", *objs, file=sys.stderr)
@@ -43,7 +41,7 @@ def get_channel_description(channel_page):
     soup = BeautifulSoup(r.text, "html.parser")
     descriptions = soup.find_all('div', class_='about-description')
     if descriptions:
-        return descriptions[0].encode_contents()
+        return descriptions[0].get_text()
     return None
 
 
@@ -85,7 +83,7 @@ def run(url, root, destination, limit, format, noblock):
         output.podcast.itunes_block(True)
 
     if channel_description:
-        output.description(CDATA.format(channel_description))
+        output.description(channel_description)
     else:
         output.description(u'{} Youtube Channel-as-Podcast. See {}'.format(feed['feed']['title'], channel_page))
 
@@ -116,7 +114,7 @@ def run(url, root, destination, limit, format, noblock):
         output_entry.id(file_url)
         output_entry.link(entry['links'])
         output_entry.title(entry['title'])
-        output_entry.summary(CDATA.format(entry['summary'].replace('\n', '<br>')))
+        output_entry.summary(entry['summary'])
         output_entry.enclosure(file_url, str(os.path.getsize(downloaded_filename)), mimetypes.guess_type(file_url)[0])
         thumbnail = entry['media_thumbnail'][0]['url']
         if not feed_icon:
