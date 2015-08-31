@@ -13,11 +13,38 @@ import click
 import feedparser
 from feedgen.feed import FeedGenerator
 import youtube_dl
+from bs4 import BeautifulSoup
+import requests
+
+CDATA = "<![CDATA[{}]]>"
 
 
 def fail(*objs):
     print("ERROR: ", *objs, file=sys.stderr)
     sys.exit(1)
+
+
+def get_feed_icon(channel_page):
+    # There is apparently no other way to get at it without a youtube API key, and I'd rather not mess with that.
+    r = requests.get(channel_page)
+    if not r.status_code == 200:
+        return None
+    soup = BeautifulSoup(r.text, "html.parser")
+    icons = soup.find_all('img', class_='channel-header-profile-image')
+    if icons:
+        return icons[0]['src']
+    return None
+
+
+def get_channel_description(channel_page):
+    r = requests.get(channel_page + '/about')
+    if not r.status_code == 200:
+        return None
+    soup = BeautifulSoup(r.text, "html.parser")
+    descriptions = soup.find_all('div', class_='about-description')
+    if descriptions:
+        return descriptions[0].encode_contents()
+    return None
 
 
 @click.command()
@@ -38,6 +65,10 @@ def run(url, root, destination, limit, format):
     if not feed.get('feed'):
         fail("Channel appears to contain no feed metadata")
 
+    channel_page = feed['feed'].get('author_detail', {}).get('href', None)
+    feed_icon = get_feed_icon(channel_page)
+    channel_description = get_channel_description(channel_page)
+
     output = FeedGenerator()
     output.load_extension('podcast')
 
@@ -47,8 +78,13 @@ def run(url, root, destination, limit, format):
         'name': feed['feed']['author'],
         'uri': feed['feed']['link']
     })
+
+    if channel_description:
+        output.description(CDATA.format(channel_description))
+    else:
+        output.description(u'{} Youtube-as-Podcast'.format(feed['feed']['title']))
+
     output.link(href=urlparse.urljoin(root, 'rss.xml'), rel='self')
-    output.description(u'{} Youtube-as-Podcast'.format(feed['feed']['title']))
     # TODO: More meta.
 
     ydl_options = {
@@ -58,7 +94,6 @@ def run(url, root, destination, limit, format):
     }
 
     youtube_identifiers = []
-    feed_icon = None
 
     for entry in feed['entries'][0:limit]:
         youtube_id = entry['id'].split(':')[2]
@@ -76,7 +111,7 @@ def run(url, root, destination, limit, format):
         output_entry.id(file_url)
         output_entry.link(entry['links'])
         output_entry.title(entry['title'])
-        output_entry.summary(entry['summary'])
+        output_entry.summary(CDATA.format(entry['summary'].replace('\n', '<br>')))
         output_entry.enclosure(file_url, 0, mimetypes.guess_type(file_url)[0])
         thumbnail = entry['media_thumbnail'][0]['url']
         if not feed_icon:
@@ -84,7 +119,8 @@ def run(url, root, destination, limit, format):
         output_entry.podcast.itunes_image(thumbnail)
         output_entry.published(entry['published'])
 
-    # It is unfortunately impractical to acquire a channel banner without getting an api id.
+    # The only way of getting the channel icon I could think of was scraping the youtube channel page.
+    # This is fragile.
     output.podcast.itunes_image(feed_icon)
     output.rss_file(os.path.join(destination, 'rss.xml'))
 

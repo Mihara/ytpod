@@ -11,6 +11,8 @@ setup(
         'feedgen',
         'feedparser',
         'youtube-dl',
+        'beautifulsoup4',
+        'requests'
     ],
     entry_points='''
         [console_scripts]
