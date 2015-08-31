@@ -54,7 +54,9 @@ def get_channel_description(channel_page):
 @click.option('--limit', '-l', default=10, help="Number of recent videos to keep in the feed")
 @click.option('--format', '-f', default='best',
               help="Preferred format option as per youtube-dl documentation. Use 'bestaudio/best' to download only audio.")
-def run(url, root, destination, limit, format):
+@click.option('--noblock', '-n', is_flag=True, default=False,
+              help="Do not prevent the feed from being listed in iTunes podcast directory")
+def run(url, root, destination, limit, format, noblock):
     feed = feedparser.parse(url)
     if feed['bozo']:
         fail("Could not parse feed from {}".format(url))
@@ -78,6 +80,9 @@ def run(url, root, destination, limit, format):
         'name': feed['feed']['author'],
         'uri': feed['feed']['link']
     })
+
+    if not noblock:
+        output.podcast.itunes_block(True)
 
     if channel_description:
         output.description(CDATA.format(channel_description))
