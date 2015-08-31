@@ -25,7 +25,9 @@ alternatives available for that use case.
 
     ytpod <youtube feed url> <your website root for the podcast>
     
-The feed URL is what you get from the OPML file. You must give the website root URL with a trailing slash. The feed URL
+The feed URL is what you get from the OPML file. You can download the OPML file for your youtube subscriptions from
+https://www.youtube.com/subscription_manager -- there are other ways to get at the feed URLs for a channel, but this
+one is the most obvious. You must give the website root URL with a trailing slash. The feed URL
 that you should give to your podcatcher is `<website root>/rss.xml`
     
 Options:
