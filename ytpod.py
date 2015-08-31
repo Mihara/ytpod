@@ -111,13 +111,14 @@ def run(url, root, destination, limit, format, noblock):
                 next(index for (index, x) in enumerate(info['formats']) if x['format_id'] == info['format_id'])
             ]['ext']
 
+        downloaded_filename = os.path.join(destination, "{}.{}".format(youtube_id, extension))
         output_entry = output.add_entry()
         file_url = urlparse.urljoin(root, youtube_id + '.' + extension)
         output_entry.id(file_url)
         output_entry.link(entry['links'])
         output_entry.title(entry['title'])
         output_entry.summary(CDATA.format(entry['summary'].replace('\n', '<br>')))
-        output_entry.enclosure(file_url, 0, mimetypes.guess_type(file_url)[0])
+        output_entry.enclosure(file_url, str(os.path.getsize(downloaded_filename)), mimetypes.guess_type(file_url)[0])
         thumbnail = entry['media_thumbnail'][0]['url']
         if not feed_icon:
             feed_icon = thumbnail
