@@ -19,8 +19,7 @@ Something to the tune of
     pip install -e git+https://github.com/mihara/ytpod@master#egg=ytpod
 
 While it should be perfectly possible to produce Windows binaries, I hardly see the need when there are better
-alternatives available for that use case. I'll see about a PyPi release once I figure out how to get channel metadata
-without actually requiring a YouTube API key.
+alternatives available for that use case.
 
 ## Command line arguments
 
@@ -36,12 +35,19 @@ Options:
 * **--limit** | **-l** -- Maximum number of files to keep on disk. Defaults to 10. Every previously downloaded file
   *(youtube IDs are logged into `download_log` in the target directory)* that no longer fits into the feed is
   automatically deleted.
+* **--noblock** | **-n** -- Do not add a marker that prevents the podcast from showing up in iTunes podcast directory
+  _(It is assumed by default that this is your private feed and you do not wish it to be publicised.)_
 
 ## Troubleshooting
 
 At the moment, the script includes almost no error checking of any kind. The most likely spot to break, however, will
 always be the YouTube download itself, to rectify which you will need to make sure a fresh version of youtube-dl is
 installed with `pip install --upgrade youtube-dl`.
+
+The other likely spot to break is the fact that as of this moment I don't have an idea on how to acquire channel
+description and icon from YouTube without an API key, _(This script hardly merits an API key)_ so I'm scraping the
+relevant pages for data instead. If the design changes, as it often does, the script will fall back to slightly less
+sensible alternatives.
   
 ## License
 
