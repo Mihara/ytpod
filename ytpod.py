@@ -102,13 +102,20 @@ def run(url, root, destination, limit, format, noblock):
         youtube_identifiers.append(youtube_id)
         video_url = "https://www.youtube.com/watch?v={}".format(youtube_id)
 
-        with youtube_dl.YoutubeDL(ydl_options) as ydl:
-            info = ydl.extract_info(video_url, download=True)
-            extension = info['formats'][
-                next(index for (index, x) in enumerate(info['formats']) if x['format_id'] == info['format_id'])
-            ]['ext']
+        # Skip the whole downloading process if the file already exists
+        existing_files = glob.glob(os.path.join(destination, '{}.*'.format(youtube_id)))
+        if not existing_files:
+            with youtube_dl.YoutubeDL(ydl_options) as ydl:
+                info = ydl.extract_info(video_url, download=True)
+                extension = info['formats'][
+                    next(index for (index, x) in enumerate(info['formats']) if x['format_id'] == info['format_id'])
+                ]['ext']
+            downloaded_filename = os.path.join(destination, "{}.{}".format(youtube_id, extension))
+        else:
+            print("{} already downloaded, skipping".format(youtube_id))
+            downloaded_filename = existing_files[0]
+            extension = downloaded_filename.split('.')[-1]
 
-        downloaded_filename = os.path.join(destination, "{}.{}".format(youtube_id, extension))
         output_entry = output.add_entry()
         file_url = urlparse.urljoin(root, youtube_id + '.' + extension)
         output_entry.id(file_url)
