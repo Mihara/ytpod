@@ -16,7 +16,7 @@ cache on your own web server.
 
 Something to the tune of 
 
-    pip install -e git+https://github.com/mihara/ytpod@master#egg=ytpod
+    pip install git+https://github.com/mihara/ytpod@master#egg=ytpod
 
 While it should be perfectly possible to produce Windows binaries, I hardly see the need when there are better
 alternatives available for that use case.
