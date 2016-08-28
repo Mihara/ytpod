@@ -3,7 +3,7 @@ from setuptools import setup
 
 setup(
     name='ytpod',
-    version='0.1',
+    version='0.2',
     py_modules=['ytpod'],
     dependency_links=['https://github.com/kurtmckee/feedparser@5.2.1#egg=feedparser'],
     install_requires=[
@@ -12,7 +12,8 @@ setup(
         'feedparser',
         'youtube-dl',
         'beautifulsoup4',
-        'requests'
+        'requests',
+        'six'
     ],
     entry_points='''
         [console_scripts]

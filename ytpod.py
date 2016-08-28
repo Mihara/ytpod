@@ -3,45 +3,53 @@
 
 from __future__ import print_function
 
-import sys
-import urlparse
-import mimetypes
 import glob
-
+import mimetypes
 import os
+import sys
+
 import click
 import feedparser
-from feedgen.feed import FeedGenerator
+import requests
 import youtube_dl
 from bs4 import BeautifulSoup
-import requests
+from feedgen.feed import FeedGenerator
+from six import u
+from six.moves.urllib.parse import urljoin
 
 
 def fail(*objs):
     print("ERROR: ", *objs, file=sys.stderr)
     sys.exit(1)
 
+def warn(*objs):
+    print("WARNING: ", *objs, file=sys.stderr)
 
 def get_feed_icon(channel_page):
     # There is apparently no other way to get at it without a youtube API key, and I'd rather not mess with that.
     r = requests.get(channel_page)
     if not r.status_code == 200:
+        warn("Failed to acquire feed icon from youtube.")
         return None
     soup = BeautifulSoup(r.text, "html.parser")
     icons = soup.find_all('img', class_='channel-header-profile-image')
     if icons:
         return icons[0]['src']
+    warn("Failed to parse out icon from youtube, ytpod needs to be updated.")
     return None
 
 
 def get_channel_description(channel_page):
+    print(channel_page)
     r = requests.get(channel_page + '/about')
     if not r.status_code == 200:
+        warn("Failed to acquire channel description from youtube.")
         return None
     soup = BeautifulSoup(r.text, "html.parser")
     descriptions = soup.find_all('div', class_='about-description')
     if descriptions:
         return descriptions[0].get_text()
+    warn("Failed to parse out channel description from youtube, ytpod needs to be updated")
     return None
 
 
@@ -51,7 +59,8 @@ def get_channel_description(channel_page):
 @click.option('--destination', '-d', default='.', help="Where to put output files")
 @click.option('--limit', '-l', default=10, help="Number of recent videos to keep in the feed")
 @click.option('--format', '-f', default='best',
-              help="Preferred format option as per youtube-dl documentation. Use 'bestaudio/best' to download only audio.")
+              help="Preferred format option as per youtube-dl documentation. "
+                   "Use 'bestaudio/best' to download only audio.")
 @click.option('--noblock', '-n', is_flag=True, default=False,
               help="Do not prevent the feed from being listed in iTunes podcast directory")
 def run(url, root, destination, limit, format, noblock):
@@ -85,9 +94,9 @@ def run(url, root, destination, limit, format, noblock):
     if channel_description:
         output.description(channel_description)
     else:
-        output.description(u'{} Youtube Channel-as-Podcast. See {}'.format(feed['feed']['title'], channel_page))
+        output.description(u('{} Youtube Channel-as-Podcast. See {}').format(feed['feed']['title'], channel_page))
 
-    output.link(href=urlparse.urljoin(root, 'rss.xml'), rel='self')
+    output.link(href=urljoin(root, 'rss.xml'), rel='self')
 
     ydl_options = {
         'outtmpl': os.path.join(destination, '%(id)s.%(ext)s'),
@@ -117,7 +126,7 @@ def run(url, root, destination, limit, format, noblock):
             extension = downloaded_filename.split('.')[-1]
 
         output_entry = output.add_entry()
-        file_url = urlparse.urljoin(root, youtube_id + '.' + extension)
+        file_url = urljoin(root, youtube_id + '.' + extension)
         output_entry.id(file_url)
         output_entry.link(entry['links'])
         output_entry.title(entry['title'])
