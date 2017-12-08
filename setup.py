@@ -13,7 +13,8 @@ setup(
         'youtube-dl',
         'beautifulsoup4',
         'requests',
-        'six'
+        'six',
+        'pyinstaller'
     ],
     entry_points='''
         [console_scripts]

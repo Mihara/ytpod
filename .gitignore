@@ -2,6 +2,8 @@
 /.env3
 /.idea
 test.sh
+.envrc
+.direnv/
 # Created by .ignore support plugin (hsz.mobi)
 ### Python template
 # Byte-compiled / optimized / DLL files
