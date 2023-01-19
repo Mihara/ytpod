@@ -25,10 +25,11 @@ Something to the tune of
 While it should be perfectly possible to produce Windows binaries, I hardly
 see the need when there are better alternatives available for that use case.
 
-Alternatively, the project is set up to use
-[pyinstaller](http://www.pyinstaller.org/) and produce standalone
-executables. You can grab one from the releases page, but they are liable to
-be out of date. To produce one yourself, check out `build.sh`
+You also require an installation of youtube-dl or yt-dlp -- whichever works
+best for you -- accessible as `youtube-dl` in PATH.
+
+The project is set up to use [shiv](https://shiv.readthedocs.io/en/latest/index.html)
+and produce quasi-standalone executables. To produce one yourself, check out `build.sh`.
 
 ## Command line arguments
 
@@ -54,15 +55,15 @@ Options:
 * **--noblock** | **-n** -- Do not add a marker that prevents the podcast from
   showing up in iTunes podcast directory _(It is assumed by default that this
   is your private feed and you do not wish it to be publicized.)_
+* **--proxy** -- Use a proxy, presumably a socks proxy. `socks5://localhost:port`
+  or something like that. Getting around censorship in the first place is left
+  as an exercise for the user.
 
 ## Troubleshooting
 
-At the moment, the script includes almost no error checking of any kind. The
-most likely spot to break, however, will always be the YouTube download
-itself, to rectify which you will need to make sure a fresh version of
-youtube-dl is installed with `pip install --upgrade youtube-dl`.
+At the moment, the script includes very little error checking of any kind.
 
-The other likely spot to break is the fact that as of this moment I don't have
+The most likely spot to break is the fact that as of this moment I don't have
 an idea on how to acquire channel description and icon from YouTube without an
 API key, _(This script hardly merits an API key)_ so I'm scraping the relevant
 pages for data instead. If the design changes, as it often does, the script

@@ -6,13 +6,17 @@ import mimetypes
 import os
 import subprocess
 import json
+import re
 from urllib.parse import urljoin
+from urllib.request import ProxyHandler, build_opener
 
 import click
 import feedparser
 import requests
 from bs4 import BeautifulSoup
 from feedgen.feed import FeedGenerator
+
+FILE_LEGAL = re.compile(r"[^\w_. -]")
 
 
 def fail(*objs):
@@ -25,13 +29,13 @@ def warn(s):
     click.echo(message="WARNING: " + s, err=True)
 
 
-def get_feed_icon(channel_page, channel_id, root, destination):
+def get_feed_icon(channel_page, channel_id, root, destination, proxy):
     """
     Previously, this function just tried to refer to the icon file on
     youtube itself, but now it just downloads the thing, and parses
     channel information from page <meta> for good measure.
     """
-    r = requests.get(channel_page)
+    r = requests.get(channel_page, proxies=proxy)
     if not r.status_code == 200:
         warn("Failed to acquire feed icon from youtube.")
         return None
@@ -39,7 +43,7 @@ def get_feed_icon(channel_page, channel_id, root, destination):
     icon = soup.find("meta", attrs={"property": "og:image"})
     if icon is not None:
         try:
-            r = requests.get(icon["content"])
+            r = requests.get(icon["content"], proxies=proxy)
         except requests.exceptions.ConnectionError:
             warn(
                 "Could not download icon, which can happen if certain parts of youtube are blocked in your country."
@@ -60,8 +64,8 @@ def get_feed_icon(channel_page, channel_id, root, destination):
     return None
 
 
-def get_channel_description(channel_page):
-    r = requests.get(channel_page + "/about")
+def get_channel_description(channel_page, proxies):
+    r = requests.get(channel_page + "/about", proxies=proxies)
     if not r.status_code == 200:
         warn("Failed to acquire channel description from youtube.")
         return None
@@ -81,7 +85,7 @@ def get_channel_description(channel_page):
 @click.argument("root")
 @click.option("--destination", "-d", default=".", help="Where to put output files")
 @click.option(
-    "--limit", "-l", default=10, help="Number of recent videos to keep in the feed"
+    "--limit", "-l", default=10, help="Number of recent files to keep in the feed"
 )
 @click.option(
     "--format",
@@ -97,8 +101,21 @@ def get_channel_description(channel_page):
     default=False,
     help="Do not prevent the feed from being listed in iTunes " "podcast directory",
 )
-def run(url, root, destination, limit, format, noblock):
-    feed = feedparser.parse(url)
+@click.option(
+    "--proxy", help="A proxy url (like 'socks5://localhost:port') if required."
+)
+def run(url, root, destination, limit, format, noblock, proxy):
+    """
+    Download a YouTube channel as files to make a podcast RSS feed.
+    """
+
+    proxies = None
+    if proxy:
+        proxies = {"http": proxy, "https": proxy}
+
+    r = requests.get(url, proxies=proxies)
+
+    feed = feedparser.parse(r.text)
     if feed["bozo"]:
         fail("Could not parse feed from {}".format(url))
 
@@ -108,16 +125,18 @@ def run(url, root, destination, limit, format, noblock):
     if not feed.get("feed"):
         fail("Channel appears to contain no feed metadata")
 
+    # For a while now youtube wasn't supplying a channel id field in feed header,
+    # bur rather only in the entries.
+    feed_id = feed["feed"]["yt_channelid"] or FILE_LEGAL.sub("_", feed["feed"]["href"])
+
     channel_page = feed["feed"].get("author_detail", {}).get("href", None)
-    feed_icon = get_feed_icon(
-        channel_page, feed["feed"]["yt_channelid"], root, destination
-    )
-    channel_description = get_channel_description(channel_page)
+    feed_icon = get_feed_icon(channel_page, feed_id, root, destination, proxies)
+    channel_description = get_channel_description(channel_page, proxies)
 
     output = FeedGenerator()
     output.load_extension("podcast")
 
-    output.id(feed["feed"]["yt_channelid"])
+    output.id(feed_id)
     output.title(feed["feed"]["title"])
     output.author({"name": feed["feed"]["author"], "uri": feed["feed"]["link"]})
 
@@ -145,6 +164,9 @@ def run(url, root, destination, limit, format, noblock):
         "--format",
         format,
     ]
+
+    if proxy:
+        ydl_options += ["--proxy", proxy]
 
     youtube_identifiers = []
 

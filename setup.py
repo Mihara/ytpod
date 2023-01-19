@@ -2,21 +2,17 @@
 from setuptools import setup
 
 setup(
-    name='ytpod',
-    version='0.2',
-    py_modules=['ytpod'],
-    dependency_links=['https://github.com/kurtmckee/feedparser@5.2.1#egg=feedparser'],
+    name="ytpod",
+    version="0.3",
+    py_modules=["ytpod"],
     install_requires=[
-        'click >= 8.0',
-        'feedgen',
-        'feedparser',
-        'beautifulsoup4',
-        'requests',
-        'pyinstaller'
+        "click >= 8.0",
+        "feedgen",
+        "feedparser >= 5.2.1",
+        "beautifulsoup4",
+        "requests[socks]",
     ],
-    python_requires='>=3.6',
-    entry_points='''
-        [console_scripts]
-        ytpod=ytpod:run
-    ''',
+    extras_require={"binary": ["shiv"]},
+    python_requires=">=3.8",
+    entry_points={"console_scripts": ["ytpod=ytpod:run"]},
 )

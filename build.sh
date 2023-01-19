@@ -6,4 +6,6 @@
 
 pip install --upgrade -r requirements.txt
 
-pyinstaller ytpod.spec
+mkdir -p dist
+
+shiv -c ytpod -o dist/ytpod .
