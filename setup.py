@@ -1,4 +1,9 @@
 # -*- coding: utf-8 -*-
+
+"""
+Where is the setup.py documented *sensibly*, anyway?
+"""
+
 from setuptools import setup
 
 setup(
@@ -11,6 +16,8 @@ setup(
         "feedparser >= 5.2.1",
         "beautifulsoup4",
         "requests[socks]",
+        "mediafile",
+        "arrow",
     ],
     extras_require={"binary": ["shiv"]},
     python_requires=">=3.8",

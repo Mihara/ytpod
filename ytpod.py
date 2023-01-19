@@ -1,6 +1,13 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+# Why is that a default anywhere?...
+# pylint: disable=invalid-name
+
+"""
+Youtube-to-podcast shim.
+"""
+
 import glob
 import mimetypes
 import os
@@ -12,6 +19,8 @@ from urllib.parse import urljoin
 import click
 import feedparser
 import requests
+import mediafile
+import arrow
 from bs4 import BeautifulSoup
 from feedgen.feed import FeedGenerator
 
@@ -23,9 +32,9 @@ def fail(*objs):
     click.get_current_context().fail("ERROR: ", *objs)
 
 
-def warn(s):
+def warn(st):
     """Shorthand for warning."""
-    click.echo(message="WARNING: " + s, err=True)
+    click.echo(message="WARNING: " + st, err=True)
 
 
 def get_feed_icon(channel_page, channel_id, root, destination, s):
@@ -45,7 +54,8 @@ def get_feed_icon(channel_page, channel_id, root, destination, s):
             r = s.get(icon["content"])
         except requests.exceptions.ConnectionError:
             warn(
-                "Could not download icon, which can happen if certain parts of youtube are blocked in your country."
+                "Could not download icon, which can happen if certain "
+                "parts of youtube are blocked in your country."
             )
             return None
         if not r.status_code == 200:
@@ -54,8 +64,10 @@ def get_feed_icon(channel_page, channel_id, root, destination, s):
         mime = r.headers.get("Content-Type")
         if mime is None:
             warn("Youtube has an icon with a mysterious file type.")
-        extension = {"image/jpeg": ".jpg"}.get(mime, mimetypes.guess_extension(mime))
-        icon_filename = os.path.join(destination, "{}{}".format(channel_id, extension))
+        extension = {
+            "image/jpeg": "jpg",
+        }.get(mime, mimetypes.guess_extension(mime))
+        icon_filename = os.path.join(destination, f"{channel_id}.{extension}")
         with open(icon_filename, "wb") as f:
             f.write(r.content)
         return urljoin(root, icon_filename)
@@ -64,12 +76,16 @@ def get_feed_icon(channel_page, channel_id, root, destination, s):
 
 
 def get_channel_description(channel_page, s):
+    """
+    You would think this would be easy or present in the rss feed.
+    No it's not.
+    """
     r = s.get(channel_page + "/about")
     if not r.status_code == 200:
         warn("Failed to acquire channel description from youtube.")
         return None
     soup = BeautifulSoup(r.text, "html.parser")
-    description = soup.find("meta", attrs={"name": "description"})
+    description = soup.find("meta", attrs={"name": "twitter:description"})
     if description is not None:
         return description["content"]
     warn(
@@ -79,13 +95,17 @@ def get_channel_description(channel_page, s):
     return None
 
 
-def download_log(destination):
-    return os.path.join(destination, "download_log")
+def download_log():
+    """Filename of the download log for this feed."""
+    return os.path.join(
+        click.get_current_context().params["destination"], "download_log"
+    )
 
 
-def get_download_log(destination):
+def get_download_log():
+    """Read the download log and parse out the youtube ids."""
     try:
-        with open(download_log(destination), "r") as f:
+        with open(download_log(), "r", encoding="utf-8") as f:
             return [x.split(" ")[1].strip() for x in f.read().split("\n") if x]
     except FileNotFoundError:
         return []
@@ -129,7 +149,15 @@ def get_download_log(destination):
     "--proxy", help="A proxy url (like 'socks5://localhost:port') if required."
 )
 def run(
-    url, root, destination, limit, file_format, noblock, proxy, keep_video, keep_unlisted
+    url,
+    root,
+    destination,
+    limit,
+    file_format,
+    noblock,
+    proxy,
+    keep_video,
+    keep_unlisted,
 ):
     """
     Download a YouTube channel as files to make a podcast RSS feed.
@@ -139,11 +167,17 @@ def run(
     if proxy:
         s.proxies.update({"http": proxy, "https": proxy})
 
+    # This is likely to be broken in short order,
+    # but it bypasses the consent form,
+    # which prevents the issues with fetching the icon and channel description.
+    # Courtesy of https://stackoverflow.com/questions/74127649/
+    s.cookies.set("SOCS", "CAESEwgDEgk0ODE3Nzk3MjQaAmVuIAEaBgiA_LyaBg")
+
     r = s.get(url)
 
     feed = feedparser.parse(r.text)
     if feed["bozo"]:
-        fail("Could not parse feed from {}".format(url))
+        fail(f"Could not parse feed from {url}")
 
     if len(feed["entries"]) < 1:
         fail("Channel appears to contain no videos.")
@@ -153,13 +187,18 @@ def run(
 
     # For a while now youtube wasn't supplying a channel id field in feed header,
     # bur rather only in the entries.
-    feed_id = feed["feed"]["yt_channelid"] or FILE_LEGAL.sub("_", feed["feed"]["href"])
+    feed_id = feed["feed"]["yt_channelid"]
+
+    if not feed_id and len(feed["entries"]) > 0:
+        feed_id = feed["entries"][0]["yt_channelid"]
 
     channel_page = feed["feed"].get("author_detail", {}).get("href", None)
     feed_icon = get_feed_icon(channel_page, feed_id, root, destination, s)
     channel_description = get_channel_description(channel_page, s)
 
     output = FeedGenerator()
+    # Pylint can't get at the podcast extension.
+    # pylint: disable=no-member
     output.load_extension("podcast")
 
     output.id(feed_id)
@@ -172,9 +211,9 @@ def run(
     if channel_description:
         output.description(channel_description)
     else:
-        output.description("{} Youtube Channel-as-Podcast. See {}".format(
-            feed["feed"]["title"], channel_page
-        ))
+        output.description(
+            f"{feed['feed']['title']} Youtube Channel-as-Podcast. See {channel_page}"
+        )
 
     output.link(href=urljoin(root, "rss.xml"), rel="self")
 
@@ -186,7 +225,7 @@ def run(
         "-o",
         os.path.join(destination, "%(id)s.%(ext)s"),
         "--download-archive",
-        download_log(destination),
+        download_log(),
         "--format",
         file_format,
     ]
@@ -205,7 +244,7 @@ def run(
         video_url = entry["link"]
 
         # Don't even invoke youtube-dl if the file is in the download log.
-        downloaded_ids = get_download_log(destination)
+        downloaded_ids = get_download_log()
 
         if youtube_id not in downloaded_ids:
             # So here we have to invoke youtube-dl (or yt-dlp) as a subprocess instead of
@@ -218,39 +257,80 @@ def run(
                 # In which case we don't want it in the feed either, so bail before
                 # we create the corresponding entry.
                 warn(
-                    "{} was downloaded before, but was since deleted, ignoring.".format(
-                        youtube_id
-                    )
+                    f"{youtube_id} was downloaded before, but was since deleted, ignoring."
                 )
                 continue
 
             downloaded_filename = info["requested_downloads"][0]["filepath"]
-            
-            # Deal with the thumbnail. We're going to be embedding it into the file
-            # once we can add media tags to the file itself.
+
+            # Deal with the thumbnail. We're going to be embedding it into the file if possible.
             r = s.get(entry["media_thumbnail"][0]["url"])
             if r.status_code == 200:
-                ext = entry["media_thumbnail"][0]["url"].rsplit('.',1)[-1]
-                icon_filename = os.path.join(destination, 'icon.{}.{}'.format(youtube_id,ext))
+                ext = entry["media_thumbnail"][0]["url"].rsplit(".", 1)[-1]
+                icon_filename = os.path.join(destination, f"icon.{youtube_id}.{ext}")
                 with open(icon_filename, "wb") as f:
                     f.write(r.content)
-                
+
+            try:
+                podcast_file = mediafile.MediaFile(downloaded_filename)
+                # The idea is that every podcast file is part of an album, which is the podcast,
+                # and track numbers in it uniquely identify an issue of the podcast.
+                # This should let most players -- navidrome especially - handle it best.
+                track_date = arrow.get(entry["published"])
+                podcast_file.update(
+                    {
+                        "artist": feed["feed"]["author"],
+                        "album": feed["feed"]["title"],
+                        "title": entry["title"],
+                        "genre": "Podcast",
+                        "date": track_date,
+                        # We have no way of knowing a podcast's actual "track number",
+                        # since youtube's feed does not include anything that would let us know
+                        # how many videos are there in total. We have to cook up our own.
+                        # The track number is the number of hours
+                        # elapsed since the day iPod was released -- prior to that,
+                        # there were no podcasts.
+                        # This way, we get a sensible sort by track, and
+                        # the track numbers are not too high in practice.
+                        # And certain channels won't get duplicates of their videos
+                        # released on the same day...
+                        "track": int(
+                            (track_date - arrow.get("2001-10-23")).seconds / (60 * 60)
+                        ),
+                    }
+                )
+                if icon_filename:
+                    with open(icon_filename, "rb") as icon_file:
+                        cover = icon_file.read()
+                        cover = mediafile.Image(
+                            data=cover,
+                            desc="album cover",
+                            type=mediafile.ImageType.front,
+                        )
+                        podcast_file.images = [cover]
+                podcast_file.save()
+            except (
+                mediafile.FileTypeError,
+                mediafile.MutagenError,
+                mediafile.UnreadableFileError,
+            ):
+                # If MediaFile doesn't handle this file type, pretend nothing untoward is going on.
+                pass
+
         else:
             # Else find it on disk.
-            fitting_filenames = glob.glob(
-                os.path.join(destination, "{}.*".format(youtube_id))
-            )
+            fitting_filenames = glob.glob(os.path.join(destination, f"{youtube_id}.*"))
             # If the file was deleted, skip creating output feed entry.
-            if not len(fitting_filenames):
+            if not fitting_filenames:
                 warn(
-                    "{} was downloaded before, but was since deleted, ignoring.".format(
-                        youtube_id
-                    )
+                    f"{youtube_id} was downloaded before, but was since deleted, ignoring."
                 )
                 continue
             downloaded_filename = fitting_filenames[0]
-            icon_filename = glob.glob(os.path.join(destination, "icon.{}.*".format(youtube_id)))[0]
-            click.echo("{} already downloaded.".format(youtube_id))
+            icon_filename = glob.glob(
+                os.path.join(destination, f"icon.{youtube_id}.*")
+            )[0]
+            click.echo(f"{youtube_id} already downloaded.")
 
         output_entry = output.add_entry()
         file_url = urljoin(root, os.path.basename(downloaded_filename))
@@ -278,16 +358,14 @@ def run(
     # Now clean the output directory of files previously downloaded but not in the feed.
     # Re-read the download log for this.
     if not keep_unlisted:
-        downloads = get_download_log(destination)
+        downloads = get_download_log()
         for youtube_id in downloads:
             if youtube_id not in youtube_identifiers:
                 for name in glob.glob(
-                    os.path.join(destination, "{}.*".format(youtube_id))
-                ) + glob.glob(
-                    os.path.join(destination, "icon.{}.*".format(youtube_id))
-                ):
+                    os.path.join(destination, f"{youtube_id}.*")
+                ) + glob.glob(os.path.join(destination, f"icon.{youtube_id}.*")):
                     os.remove(name)
 
 
 if __name__ == "__main__":
-    run()
+    run()  # pylint: disable=no-value-for-parameter
