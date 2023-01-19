@@ -4,7 +4,7 @@
 # This should produce an executable from scratch.
 # It assumes you already have the correct virtualenv activated.
 
-pip install --upgrade -r requirements.txt
+pip install --upgrade .[binary]
 
 mkdir -p dist
 
