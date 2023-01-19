@@ -10,7 +10,6 @@ setup(
         'click >= 8.0',
         'feedgen',
         'feedparser',
-        'youtube-dl',
         'beautifulsoup4',
         'requests',
         'pyinstaller'
