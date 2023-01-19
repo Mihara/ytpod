@@ -269,8 +269,10 @@ def run(
     # If the feed icon was not available, use a video thumbnail instead.
     if not feed_icon and icon_filename:
         feed_icon = urljoin(root, os.path.basename(icon_filename))
-        
-    output.podcast.itunes_image(feed_icon)
+    # Just don't add a feed icon if we still don't have one.
+    if feed_icon:
+        output.podcast.itunes_image(feed_icon)
+
     output.rss_file(os.path.join(destination, "rss.xml"))
 
     # Now clean the output directory of files previously downloaded but not in the feed.
