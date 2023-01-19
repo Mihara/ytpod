@@ -8,7 +8,6 @@ import subprocess
 import json
 import re
 from urllib.parse import urljoin
-from urllib.request import ProxyHandler, build_opener
 
 import click
 import feedparser
@@ -60,7 +59,7 @@ def get_feed_icon(channel_page, channel_id, root, destination, s):
         with open(icon_filename, "wb") as f:
             f.write(r.content)
         return urljoin(root, icon_filename)
-    warn("Failed to parse out icon from youtube, ytpod needs an update.")
+    warn("Failed to parse out icon from youtube, which could be perfectly normal.")
     return None
 
 
@@ -75,9 +74,21 @@ def get_channel_description(channel_page, s):
         return description["content"]
     warn(
         "Failed to parse out channel description from youtube, "
-        "ytpod needs to be updated"
+        "which could be perfectly normal."
     )
     return None
+
+
+def download_log(destination):
+    return os.path.join(destination, "download_log")
+
+
+def get_download_log(destination):
+    try:
+        with open(download_log(destination), "r") as f:
+            return [x.split(' ')[1].strip() for x in f.read().split("\n") if x]
+    except FileNotFoundError:
+        return []
 
 
 @click.command()
@@ -95,6 +106,11 @@ def get_channel_description(channel_page, s):
     "Use 'bestaudio/best' to download only audio.",
 )
 @click.option(
+    "--keep-video",
+    help="By default, ytpod will attempt to download an audio-only file. "
+    "This option will make it keep the video and avoid conversion.",
+)
+@click.option(
     "--noblock",
     "-n",
     is_flag=True,
@@ -104,7 +120,7 @@ def get_channel_description(channel_page, s):
 @click.option(
     "--proxy", help="A proxy url (like 'socks5://localhost:port') if required."
 )
-def run(url, root, destination, limit, format, noblock, proxy):
+def run(url, root, destination, limit, format, noblock, proxy, keep_video):
     """
     Download a YouTube channel as files to make a podcast RSS feed.
     """
@@ -160,10 +176,13 @@ def run(url, root, destination, limit, format, noblock, proxy):
         "-o",
         os.path.join(destination, "%(id)s.%(ext)s"),
         "--download-archive",
-        os.path.join(destination, "download_log"),
+        download_log(destination),
         "--format",
         format,
     ]
+
+    if not keep_video:
+        ydl_options += ["-x"]
 
     if proxy:
         ydl_options += ["--proxy", proxy]
@@ -173,32 +192,39 @@ def run(url, root, destination, limit, format, noblock, proxy):
     for entry in feed["entries"][0:limit]:
         youtube_id = entry["id"].split(":")[2]
         youtube_identifiers.append(youtube_id)
-        video_url = "https://www.youtube.com/watch?v={}".format(youtube_id)
+        video_url = entry["link"]
 
-        # Skip the whole downloading process if the file already exists
-        existing_files = glob.glob(os.path.join(destination, "{}.*".format(youtube_id)))
-        if not existing_files:
+        # Don't even invoke youtube-dl if the file is in the download log.
+        downloaded_ids = get_download_log(destination)
+
+        if youtube_id not in downloaded_ids:
             # So here we have to invoke youtube-dl (or yt-dlp) as a subprocess instead of
             # trying to call it directly.
+
             info = subprocess.check_output(["youtube-dl"] + ydl_options + [video_url])
             info = json.loads(info)
-            extension = info["formats"][
-                next(
-                    index
-                    for (index, x) in enumerate(info["formats"])
-                    if x["format_id"] == info["format_id"]
-                )
-            ]["ext"]
-            downloaded_filename = os.path.join(
-                destination, "{}.{}".format(youtube_id, extension)
-            )
+            if not info:
+                # That means the file is in the log but was deleted from disk.
+                # In which case we don't want it in the feed either, so bail before
+                # we create the corresponding entry.
+                warn("{} was downloaded before, but was since deleted, ignoring.".format(youtube_id))
+                continue
+
+            downloaded_filename = info["requested_downloads"][0]["filepath"]
         else:
+            # Else find it on disk.
+            fitting_filenames = glob.glob(
+                os.path.join(destination, "{}.*".format(youtube_id))
+            )
+            # If the file was deleted, skip creating output feed entry.
+            if not len(fitting_filenames):
+                warn("{} was downloaded before, but was since deleted, ignoring.".format(youtube_id))
+                continue
+            downloaded_filename = fitting_filenames[0]
             click.echo("{} already downloaded, skipping".format(youtube_id))
-            downloaded_filename = existing_files[0]
-            extension = downloaded_filename.split(".")[-1]
 
         output_entry = output.add_entry()
-        file_url = urljoin(root, youtube_id + "." + extension)
+        file_url = urljoin(root, os.path.basename(downloaded_filename))
         output_entry.id(file_url)
         output_entry.link(entry["links"])
         output_entry.title(entry["title"])
@@ -218,13 +244,12 @@ def run(url, root, destination, limit, format, noblock, proxy):
     output.rss_file(os.path.join(destination, "rss.xml"))
 
     # Now clean the output directory of files previously downloaded but not in the feed.
-    with open(os.path.join(destination, "download_log"), "r") as f:
-        for line in f.readlines():
-            if line.strip():
-                id = line.split()[1]
-                if id not in youtube_identifiers:
-                    for name in glob.glob(os.path.join(destination, "{}.*".format(id))):
-                        os.remove(name)
+    # Re-read the download log for this.
+    downloads = get_download_log(destination)
+    for youtube_id in downloads:
+        if youtube_id not in youtube_identifiers:
+            for name in glob.glob(os.path.join(destination, "{}.*".format(youtube_id))):
+                os.remove(name)
 
 
 if __name__ == "__main__":

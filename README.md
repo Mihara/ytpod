@@ -48,6 +48,8 @@ Options:
   of the feed. Defaults to current directory.
 * **--format** | **-f** -- Output format as per youtube-dl options. Use
   `bestaudio/best` to produce audio only files.
+* **--keep-video** -- By default, ytpod will attempt to produce audio, rather
+  than video files. This may not be what you want, hence this option.
 * **--limit** | **-l** -- Maximum number of files to keep on disk. Defaults
   to 10. Every previously downloaded file *(youtube IDs are logged into
   `download_log` in the target directory)* that no longer fits into the feed
