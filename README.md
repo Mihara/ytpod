@@ -40,12 +40,12 @@ and produce quasi-standalone executables. To produce one yourself, check out `bu
 
     ytpod <youtube feed url> <your website root for the podcast>
     
-The feed URL is what you get from the OPML file. You can download the OPML
-file for your youtube subscriptions from
-https://www.youtube.com/subscription_manager -- there are other ways to get at
-the feed URLs for a channel, but this one is the most obvious. Putting a
-channel URL instead of the feed URL is also supported for convenience, but may
-abruptly stop working when YouTube changes something again.
+Getting the feed URL has become harder over the years. Previously, YouTube
+allowed you to export an OPML file. Now you have to [do a complicated
+dance](https://greasyfork.org/en/scripts/418574-export-youtube-subscriptions-to-rss-opml)
+to get it. Straight channel URLs instead of the feed URL are also supported
+for convenience, but may abruptly stop working when YouTube changes something
+again.
 
 You must give the website root URL with a trailing slash. The feed URL that
 you should give to your podcatcher is `<website root>/rss.xml`
