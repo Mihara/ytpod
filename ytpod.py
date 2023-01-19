@@ -29,13 +29,13 @@ def warn(s):
     click.echo(message="WARNING: " + s, err=True)
 
 
-def get_feed_icon(channel_page, channel_id, root, destination, proxy):
+def get_feed_icon(channel_page, channel_id, root, destination, s):
     """
     Previously, this function just tried to refer to the icon file on
     youtube itself, but now it just downloads the thing, and parses
     channel information from page <meta> for good measure.
     """
-    r = requests.get(channel_page, proxies=proxy)
+    r = s.get(channel_page)
     if not r.status_code == 200:
         warn("Failed to acquire feed icon from youtube.")
         return None
@@ -43,7 +43,7 @@ def get_feed_icon(channel_page, channel_id, root, destination, proxy):
     icon = soup.find("meta", attrs={"property": "og:image"})
     if icon is not None:
         try:
-            r = requests.get(icon["content"], proxies=proxy)
+            r = s.get(icon["content"])
         except requests.exceptions.ConnectionError:
             warn(
                 "Could not download icon, which can happen if certain parts of youtube are blocked in your country."
@@ -64,8 +64,8 @@ def get_feed_icon(channel_page, channel_id, root, destination, proxy):
     return None
 
 
-def get_channel_description(channel_page, proxies):
-    r = requests.get(channel_page + "/about", proxies=proxies)
+def get_channel_description(channel_page, s):
+    r = s.get(channel_page + "/about")
     if not r.status_code == 200:
         warn("Failed to acquire channel description from youtube.")
         return None
@@ -109,11 +109,11 @@ def run(url, root, destination, limit, format, noblock, proxy):
     Download a YouTube channel as files to make a podcast RSS feed.
     """
 
-    proxies = None
+    s = requests.Session()
     if proxy:
-        proxies = {"http": proxy, "https": proxy}
+        s.proxies.update({"http": proxy, "https": proxy})
 
-    r = requests.get(url, proxies=proxies)
+    r = s.get(url)
 
     feed = feedparser.parse(r.text)
     if feed["bozo"]:
@@ -130,8 +130,8 @@ def run(url, root, destination, limit, format, noblock, proxy):
     feed_id = feed["feed"]["yt_channelid"] or FILE_LEGAL.sub("_", feed["feed"]["href"])
 
     channel_page = feed["feed"].get("author_detail", {}).get("href", None)
-    feed_icon = get_feed_icon(channel_page, feed_id, root, destination, proxies)
-    channel_description = get_channel_description(channel_page, proxies)
+    feed_icon = get_feed_icon(channel_page, feed_id, root, destination, s)
+    channel_description = get_channel_description(channel_page, s)
 
     output = FeedGenerator()
     output.load_extension("podcast")
@@ -193,7 +193,7 @@ def run(url, root, destination, limit, format, noblock, proxy):
                 destination, "{}.{}".format(youtube_id, extension)
             )
         else:
-            print("{} already downloaded, skipping".format(youtube_id))
+            click.echo("{} already downloaded, skipping".format(youtube_id))
             downloaded_filename = existing_files[0]
             extension = downloaded_filename.split(".")[-1]
 
