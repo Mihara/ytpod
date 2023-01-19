@@ -172,9 +172,9 @@ def run(
     if channel_description:
         output.description(channel_description)
     else:
-        output.description("{} Youtube Channel-as-Podcast. See {}").format(
+        output.description("{} Youtube Channel-as-Podcast. See {}".format(
             feed["feed"]["title"], channel_page
-        )
+        ))
 
     output.link(href=urljoin(root, "rss.xml"), rel="self")
 
