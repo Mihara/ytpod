@@ -11,6 +11,11 @@ give the URL of the xml file to your podcatcher, and you're done. Run at
 regular intervals as appropriate for each youtube channel that you wish to
 download in this manner.
 
+An alternative use is to save the files and feed them to
+[Navidrome](https://navidrome.org) as if they were music -- when using audio
+files mode, the appropriate tags are applied to media files to make it easy to
+sort them.
+
 I made this for my own use, because, while Android has some excellent
 podcatching applications, few, if any, of them can download Youtube channels
 for later viewing offline. This downloader permits them to do it, at the cost
@@ -38,9 +43,12 @@ and produce quasi-standalone executables. To produce one yourself, check out `bu
 The feed URL is what you get from the OPML file. You can download the OPML
 file for your youtube subscriptions from
 https://www.youtube.com/subscription_manager -- there are other ways to get at
-the feed URLs for a channel, but this one is the most obvious. You must give
-the website root URL with a trailing slash. The feed URL that you should give
-to your podcatcher is `<website root>/rss.xml`
+the feed URLs for a channel, but this one is the most obvious. Putting a
+channel URL instead of the feed URL is also supported for convenience, but may
+abruptly stop working when YouTube changes something again.
+
+You must give the website root URL with a trailing slash. The feed URL that
+you should give to your podcatcher is `<website root>/rss.xml`
     
 Options:
 
@@ -63,14 +71,15 @@ Options:
 
 ## Troubleshooting
 
-At the moment, the script includes very little error checking of any kind.
+This is not a very robust program, not by my standards. The most likely spot
+to break is the fact that as of this moment I don't have an idea on how to
+acquire channel description and icon from YouTube without an API key, _(This
+script hardly merits an API key)_ so I'm scraping the relevant pages for data
+instead. While the data is extracted from meta tags used for embedding YouTube
+in other sites, which are liable to stick around, in *some* cases this may be
+impeded by a webpage asking the user to consent for cookies, and I'm not sure
+the way to bypass that will keep working forever.
 
-The most likely spot to break is the fact that as of this moment I don't have
-an idea on how to acquire channel description and icon from YouTube without an
-API key, _(This script hardly merits an API key)_ so I'm scraping the relevant
-pages for data instead. If the design changes, as it often does, the script
-will fall back to slightly less sensible alternatives.
-  
 ## License
 
 This program is licensed under the terms of GNU GPL version 3 license.

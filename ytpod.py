@@ -24,17 +24,15 @@ import arrow
 from bs4 import BeautifulSoup
 from feedgen.feed import FeedGenerator
 
-FILE_LEGAL = re.compile(r"[^\w_. -]")
 
-
-def fail(*objs):
+def fail(msg):
     """Shorthand for failure."""
-    click.get_current_context().fail("ERROR: ", *objs)
+    click.get_current_context().fail(msg)
 
 
-def warn(st):
+def warn(msg):
     """Shorthand for warning."""
-    click.echo(message="WARNING: " + st, err=True)
+    click.echo(message=f"Warning: {msg}", err=True)
 
 
 def get_feed_icon(channel_page, channel_id, root, destination, s):
@@ -175,7 +173,32 @@ def run(
 
     r = s.get(url)
 
+    if r.status_code != 200:
+        fail("Could not get the channel feed.")
+
+    # See if we got a channel url rather than its RSS feed url.
+    # If so, handle it - the easy way to get the channel id and
+    # make an RSS url is to get the channel username out of the meta tags.
+
+    if r.headers.get("Content-Type", "").startswith("text/html;"):
+        # Rather than xml, which implies we need to extract the channel id.
+        soup = BeautifulSoup(r.text, "html.parser")
+        channel_url = soup.find("meta", attrs={"name": "twitter:url"})
+        if not channel_url:
+            fail("Wait, is that even a youtube URL?...")
+        channel_url = channel_url["content"]
+        m = re.match(r"^https://www.youtube.com/channel/(?P<user>.+)$", channel_url)
+        if m:
+            r = s.get(
+                f"https://www.youtube.com/feeds/videos.xml?channel_id={m['user']}"
+            )
+        else:
+            fail(
+                "I don't recognize the channel URL, so it's up to you to get an RSS feed out of it."
+            )
+
     feed = feedparser.parse(r.text)
+
     if feed["bozo"]:
         fail(f"Could not parse feed from {url}")
 
@@ -226,6 +249,9 @@ def run(
         os.path.join(destination, "%(id)s.%(ext)s"),
         "--download-archive",
         download_log(),
+        # We can't be waiting for live streams.
+        "--match-filters",
+        "!is_live",
         "--format",
         file_format,
     ]
@@ -261,6 +287,13 @@ def run(
                 )
                 continue
 
+            if not info.get("requested_downloads"):
+                warn(
+                    f"Could not download {youtube_id}, probably because "
+                    "it's an active livestream. Skipping."
+                )
+                continue
+
             downloaded_filename = info["requested_downloads"][0]["filepath"]
 
             # Deal with the thumbnail. We're going to be embedding it into the file if possible.
@@ -273,30 +306,36 @@ def run(
 
             try:
                 podcast_file = mediafile.MediaFile(downloaded_filename)
-                # The idea is that every podcast file is part of an album, which is the podcast,
-                # and track numbers in it uniquely identify an issue of the podcast.
-                # This should let most players -- navidrome especially - handle it best.
+                # The idea is that every podcast file is attributed to an artist
+                # (feed title, on youtube it is the same as the author),
+                # and is part of an album (year-month)
+                # while track numbers in it uniquely identify an issue of the podcast
+                # within that album, in chronological order.
+
+                # We have no way of knowing a podcast's actual "track number",
+                # since youtube's feed does not include anything that would let us know
+                # how many videos are there in total. We have to cook up our own,
+                # and the only thing we can rely on is the publishing date.
+                # Players have issues with very high track numbers, and some
+                # youtube shows post more than one show per day.
+
+                # So the current solution is to make the day a disc number,
+                # in hopes that all players handle 30-disc collections well,
+                # and make the hour a track number.
+
                 track_date = arrow.get(entry["published"])
+                album = track_date.format("YYYY-MM")
+                disc = track_date.format("DD")
+                track = track_date.format("HH")
                 podcast_file.update(
                     {
-                        "artist": feed["feed"]["author"],
-                        "album": feed["feed"]["title"],
+                        "artist": feed["feed"]["title"],
+                        "album": album,
                         "title": entry["title"],
                         "genre": "Podcast",
                         "date": track_date,
-                        # We have no way of knowing a podcast's actual "track number",
-                        # since youtube's feed does not include anything that would let us know
-                        # how many videos are there in total. We have to cook up our own.
-                        # The track number is the number of hours
-                        # elapsed since the day iPod was released -- prior to that,
-                        # there were no podcasts.
-                        # This way, we get a sensible sort by track, and
-                        # the track numbers are not too high in practice.
-                        # And certain channels won't get duplicates of their videos
-                        # released on the same day...
-                        "track": int(
-                            (track_date - arrow.get("2001-10-23")).seconds / (60 * 60)
-                        ),
+                        "disc": disc,
+                        "track": track,
                     }
                 )
                 if icon_filename:
