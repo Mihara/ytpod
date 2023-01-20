@@ -35,12 +35,14 @@ def warn(msg):
     click.echo(message=f"Warning: {msg}", err=True)
 
 
-def get_feed_icon(channel_page, channel_id, root, destination, s):
+def get_feed_icon(channel_page, channel_id, s):
     """
     Previously, this function just tried to refer to the icon file on
     youtube itself, but now it just downloads the thing, and parses
     channel information from page <meta> for good measure.
     """
+    root = click.get_current_context().params["root"]
+    destination = click.get_current_context().params["destination"]
     r = s.get(channel_page)
     if not r.status_code == 200:
         warn("Failed to acquire feed icon from youtube.")
@@ -189,9 +191,16 @@ def run(
         channel_url = channel_url["content"]
         m = re.match(r"^https://www.youtube.com/channel/(?P<user>.+)$", channel_url)
         if m:
-            r = s.get(
+            actual_url = (
                 f"https://www.youtube.com/feeds/videos.xml?channel_id={m['user']}"
             )
+            r = s.get(actual_url)
+            if r.status_code == 200:
+                click.echo(f"The actual RSS feed URL is {actual_url}")
+            else:
+                fail(
+                    f"I figured out the actual channel feed URL, ({actual_url}) but couldn't fetch it."
+                )
         else:
             fail(
                 "I don't recognize the channel URL, so it's up to you to get an RSS feed out of it."
@@ -210,13 +219,11 @@ def run(
 
     # For a while now youtube wasn't supplying a channel id field in feed header,
     # bur rather only in the entries.
-    feed_id = feed["feed"]["yt_channelid"]
-
-    if not feed_id and len(feed["entries"]) > 0:
-        feed_id = feed["entries"][0]["yt_channelid"]
+    # We're already checking if there's at least one entry by the time we get here.
+    feed_id = feed["feed"]["yt_channelid"] or feed["entries"][0]["yt_channelid"]
 
     channel_page = feed["feed"].get("author_detail", {}).get("href", None)
-    feed_icon = get_feed_icon(channel_page, feed_id, root, destination, s)
+    feed_icon = get_feed_icon(channel_page, feed_id, s)
     channel_description = get_channel_description(channel_page, s)
 
     output = FeedGenerator()
@@ -321,7 +328,8 @@ def run(
 
                 # So the current solution is to make the day a disc number,
                 # in hopes that all players handle 30-disc collections well,
-                # and make the hour a track number.
+                # and make the hour a track number. Even that results in duplicates
+                # for some particularly prolific channels.
 
                 track_date = arrow.get(entry["published"])
                 album = track_date.format("YYYY-MM")
