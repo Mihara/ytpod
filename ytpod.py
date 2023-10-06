@@ -283,7 +283,18 @@ def run(
             # So here we have to invoke youtube-dl (or yt-dlp) as a subprocess instead of
             # trying to call it directly.
 
-            info = subprocess.check_output(["youtube-dl"] + ydl_options + [video_url])
+            try:
+                info = subprocess.check_output(["youtube-dl"] + ydl_options + [video_url])
+            except subprocess.CalledProcessError as e:
+                # youtube-dl / yt-dlp return errors when attempting
+                # to download live events, but don't produce
+                # very detailed error messages.
+                # Live events, however, will one day air, so 
+                # it's an error safe to ignore.
+                if "live event will begin" in info:
+                    continue
+                raise e
+            
             info = json.loads(info)
             if not info:
                 # That means the file is in the log but was deleted from disk.
