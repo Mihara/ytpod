@@ -291,7 +291,7 @@ def run(
                 # very detailed error messages.
                 # Live events, however, will one day air, so 
                 # it's an error safe to ignore.
-                if "live event will begin" in info:
+                if "live event will begin" in e.output.decode():
                     continue
                 raise e
             
