@@ -287,7 +287,8 @@ def run(
             # trying to call it directly.
 
             try:
-                info = subprocess.check_output(["youtube-dl"] + ydl_options + [video_url])
+                info = subprocess.check_output(["youtube-dl"] + ydl_options + [video_url], 
+                                               stderr=subprocess.STDOUT)
             except subprocess.CalledProcessError as e:
                 # youtube-dl / yt-dlp return errors when attempting
                 # to download live events, but don't produce
@@ -308,78 +309,75 @@ def run(
                 )
                 continue
 
-                if not info.get("requested_downloads"):
-                    warn(
-                        f"Could not download {youtube_id}, probably because "
-                        "it's an active livestream. Skipping."
-                    )
-                    continue
-
-                downloaded_filename = info["requested_downloads"][0]["filepath"]
-
-                # Deal with the thumbnail. We're going to be embedding it into the file if possible.
-                r = s.get(entry["media_thumbnail"][0]["url"])
-                if r.status_code == 200:
-                    ext = entry["media_thumbnail"][0]["url"].rsplit(".", 1)[-1]
-                    icon_filename = os.path.join(destination, f"icon.{youtube_id}.{ext}")
-                    with open(icon_filename, "wb") as f:
-                        f.write(r.content)
-
-                try:
-                    podcast_file = mediafile.MediaFile(downloaded_filename)
-                    # The idea is that every podcast file is attributed to an artist
-                    # (feed title, on youtube it is the same as the author),
-                    # and is part of an album (year-month)
-                    # while track numbers in it uniquely identify an issue of the podcast
-                    # within that album, in chronological order.
-
-                    # We have no way of knowing a podcast's actual "track number",
-                    # since youtube's feed does not include anything that would let us know
-                    # how many videos are there in total. We have to cook up our own,
-                    # and the only thing we can rely on is the publishing date.
-                    # Players have issues with very high track numbers, and some
-                    # youtube shows post more than one show per day.
-
-                    # So the current solution is to make the day a disc number,
-                    # in hopes that all players handle 30-disc collections well,
-                    # and make the hour a track number. Even that results in duplicates
-                    # for some particularly prolific channels.
-
-                    track_date = arrow.get(entry["published"])
-                    album = track_date.format("YYYY-MM")
-                    disc = track_date.format("DD")
-                    track = track_date.format("HH")
-                    podcast_file.update(
-                        {
-                            "artist": feed["feed"]["title"],
-                            "album": album,
-                            "title": entry["title"],
-                            "genre": "Podcast",
-                            "date": track_date,
-                            "disc": disc,
-                            "track": track,
-                        }
-                    )
-                    if icon_filename:
-                        with open(icon_filename, "rb") as icon_file:
-                            cover = icon_file.read()
-                            cover = mediafile.Image(
-                                data=cover,
-                                desc="album cover",
-                                type=mediafile.ImageType.front,
-                            )
-                            podcast_file.images = [cover]
-                    podcast_file.save()
-                except (
-                    mediafile.FileTypeError,
-                    mediafile.MutagenError,
-                    mediafile.UnreadableFileError,
-                ):
-                    # If MediaFile doesn't handle this file type, pretend nothing untoward is going on.
-                    pass
-            except subprocess.CalledProcessError:
-                warn(f"Downloader returned an error on {youtube_id}, a likely cause is that the video is an upcoming live.")
+            if not info.get("requested_downloads"):
+                warn(
+                    f"Could not download {youtube_id}, probably because "
+                    "it's an active livestream. Skipping."
+                )
                 continue
+
+            downloaded_filename = info["requested_downloads"][0]["filepath"]
+
+            # Deal with the thumbnail. We're going to be embedding it into the file if possible.
+            r = s.get(entry["media_thumbnail"][0]["url"])
+            if r.status_code == 200:
+                ext = entry["media_thumbnail"][0]["url"].rsplit(".", 1)[-1]
+                icon_filename = os.path.join(destination, f"icon.{youtube_id}.{ext}")
+                with open(icon_filename, "wb") as f:
+                    f.write(r.content)
+
+            try:
+                podcast_file = mediafile.MediaFile(downloaded_filename)
+                # The idea is that every podcast file is attributed to an artist
+                # (feed title, on youtube it is the same as the author),
+                # and is part of an album (year-month)
+                # while track numbers in it uniquely identify an issue of the podcast
+                # within that album, in chronological order.
+
+                # We have no way of knowing a podcast's actual "track number",
+                # since youtube's feed does not include anything that would let us know
+                # how many videos are there in total. We have to cook up our own,
+                # and the only thing we can rely on is the publishing date.
+                # Players have issues with very high track numbers, and some
+                # youtube shows post more than one show per day.
+
+                # So the current solution is to make the day a disc number,
+                # in hopes that all players handle 30-disc collections well,
+                # and make the hour a track number. Even that results in duplicates
+                # for some particularly prolific channels.
+
+                track_date = arrow.get(entry["published"])
+                album = track_date.format("YYYY-MM")
+                disc = track_date.format("DD")
+                track = track_date.format("HH")
+                podcast_file.update(
+                    {
+                        "artist": feed["feed"]["title"],
+                        "album": album,
+                        "title": entry["title"],
+                        "genre": "Podcast",
+                        "date": track_date,
+                        "disc": disc,
+                        "track": track,
+                    }
+                )
+                if icon_filename:
+                    with open(icon_filename, "rb") as icon_file:
+                        cover = icon_file.read()
+                        cover = mediafile.Image(
+                            data=cover,
+                            desc="album cover",
+                            type=mediafile.ImageType.front,
+                        )
+                        podcast_file.images = [cover]
+                podcast_file.save()
+            except (
+                mediafile.FileTypeError,
+                mediafile.MutagenError,
+                mediafile.UnreadableFileError,
+            ):
+                # If MediaFile doesn't handle this file type, pretend nothing untoward is going on.
+                pass
 
         else:
             # Else find it on disk.
