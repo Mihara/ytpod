@@ -288,15 +288,25 @@ def run(
 
             try:
                 info = subprocess.check_output(["youtube-dl"] + ydl_options + [video_url])
-                info = json.loads(info)
-                if not info:
-                    # That means the file is in the log but was deleted from disk.
-                    # In which case we don't want it in the feed either, so bail before
-                    # we create the corresponding entry.
-                    warn(
-                        f"{youtube_id} was downloaded before, but was since deleted, ignoring."
-                    )
+            except subprocess.CalledProcessError as e:
+                # youtube-dl / yt-dlp return errors when attempting
+                # to download live events, but don't produce
+                # very detailed error messages.
+                # Live events, however, will one day air, so 
+                # it's an error safe to ignore.
+                if "live event will begin" in e.output.decode():
                     continue
+                raise e
+            
+            info = json.loads(info)
+            if not info:
+                # That means the file is in the log but was deleted from disk.
+                # In which case we don't want it in the feed either, so bail before
+                # we create the corresponding entry.
+                warn(
+                    f"{youtube_id} was downloaded before, but was since deleted, ignoring."
+                )
+                continue
 
                 if not info.get("requested_downloads"):
                     warn(
