@@ -397,6 +397,7 @@ def run(
             icons = glob.glob(
                 os.path.join(destination, f"icon.{youtube_id}.*")
             )
+            icon_filename = None
             if len(icons) > 0:
                 icon_filename = icons[0]
             click.echo(f"{youtube_id} already downloaded.")
