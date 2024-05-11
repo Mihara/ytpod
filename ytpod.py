@@ -299,7 +299,12 @@ def run(
                     continue
                 raise e
             
-            info = json.loads(info)
+            try:
+                info = json.loads(info)
+            except json.decoder.JSONDecodeError:
+                warn(f"{youtube_id} could not be downloaded, skipping...")
+                continue
+
             if not info:
                 # That means the file is in the log but was deleted from disk.
                 # In which case we don't want it in the feed either, so bail before
